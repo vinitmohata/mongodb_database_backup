@@ -1,5 +1,6 @@
 var MongoClient = require('mongodb').MongoClient;
 var backup = require('mongodb-backup');
+var restore = require('mongodb-restore');
 var async = require('async');
 var cronJob = require('cron').CronJob;
 var express = require('express');
@@ -21,15 +22,16 @@ var start_backup = function () {
             // List all the available databases
             adminDb.listDatabases(function (err, result) {
                 dbList = result.databases;
-                console.log('Total Databases count is ' + dbList +' on '+url);
+                console.log('Total Databases count is ' + dbList + ' on ' + url);
                 async.eachSeries(result.databases, function (database, callback) {
                     backup({
-                        uri: url + '/' + database.name, // mongodb://<dbuser>:<dbpassword>@<dbdomain>.mongolab.com:<dbport>/<dbdatabase>
+                        uri: url + '/' + database.name,
                         root: __dirname + '/databases/',
                         callback: function (err) {
                             if (err) {
+                                console.error('error occured for ' + database.name);
                                 console.error(err);
-                                callback()
+                                callback(err);
                             } else {
                                 console.log('Backup done for ' + database.name + 'at ' + new Date());
                                 callback();
@@ -41,10 +43,50 @@ var start_backup = function () {
                         console.error(err);
                     } else {
                         console.log('Backup automated process completed');
-                        db.close();
+                        // if (dbList.length > 0) {
+                        //     restoredb(dbList, function (error) {
+                        //         if (error) {
+                        //             console.error(error);
+                        //         } else {
+                        //             console.log('Restore automated process completed');
+                        //             db.close();
+                        //         }
+                        //     })
+                        // } else {
+                        //     db.close();
+                        // }
+                        
+                        //Uncomment above part if you want to restore database to other server
+                        db.close();  // comment this if you uncooment the above code of restore backup
                     }
                 });
             });
+        }
+    });
+}
+
+var restoredb = function (dbs, cb) {
+    var backupUrl = 'mongodb://localhost:27017';  // mongodb://<dbuser>:<dbpassword>@<dbdomain>.mongolab.com:<dbport>
+    async.eachSeries(dbs, function (database, callback) {
+        restore({
+            uri: backupUrl + '/' + database.name,
+            root: __dirname + '/databases/',
+            callback: function (err) {
+                if (err) {
+                    console.error('error occured for ' + database.name);
+                    console.error(err);
+                    callback(err)
+                } else {
+                    console.log('Restore done for ' + database.name + 'at ' + new Date());
+                    callback();
+                }
+            }
+        });
+    }, function (error) {
+        if (error) {
+            cb(error);
+        } else {
+            cb();
         }
     });
 }
